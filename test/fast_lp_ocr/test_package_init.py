@@ -8,8 +8,8 @@ def test_training_modules_import_without_onnxruntime() -> None:
             sys.executable,
             "-c",
             (
-                "import importlib.util; "
-                "assert importlib.util.find_spec('onnxruntime') is None; "
+                "import sys; "
+                "sys.modules['onnxruntime'] = None; "
                 "from fast_plate_ocr.train.model.config import PlateConfig; "
                 "print(PlateConfig.__name__)"
             ),

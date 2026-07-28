@@ -1,16 +1,20 @@
 import os
 import pathlib
 import subprocess
+import sys
 import tempfile
 import unittest
 
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[3]
-SETUP_SCRIPT = PROJECT_ROOT / "scripts" / "setup_pytorch_env.sh"
-EXPORT_SCRIPT = PROJECT_ROOT / "scripts" / "export_onnx_torch.sh"
+WORKFLOW = PROJECT_ROOT / "scripts" / "plate_workflow.py"
 
 
-class PytorchShellScriptsTest(unittest.TestCase):
+def workflow_command(*args: str) -> list[str]:
+    return [sys.executable, str(WORKFLOW), *args]
+
+
+class PytorchWorkflowCliTest(unittest.TestCase):
     def test_setup_keeps_pytorch_and_installs_onnx_dependencies(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = pathlib.Path(tmp_dir)
@@ -18,9 +22,9 @@ class PytorchShellScriptsTest(unittest.TestCase):
             fake_python = root / "python"
             fake_python.write_text(
                 "#!/usr/bin/env bash\n"
-                "printf '%s\\n' \"$*\" >> \"${CAPTURE_PATH}\"\n"
+                'printf \'%s\\n\' "$*" >> "${CAPTURE_PATH}"\n'
                 "if [[ \"$*\" == *'torch.__version__'* ]]; then echo '2.4.0|0.19.0'; fi\n"
-                "if [[ \"$*\" == *'find_spec(\"tensorflow\")'* ]]; then exit 1; fi\n"
+                'if [[ "$*" == *\'find_spec("tensorflow")\'* ]]; then exit 1; fi\n'
                 "exit 0\n",
                 encoding="utf-8",
             )
@@ -29,7 +33,7 @@ class PytorchShellScriptsTest(unittest.TestCase):
             env.update({"CAPTURE_PATH": str(capture_path), "PYTHON_BIN": str(fake_python)})
 
             subprocess.run(
-                [str(SETUP_SCRIPT), "--skip-verify"],
+                workflow_command("setup", "--skip-verify"),
                 cwd=PROJECT_ROOT,
                 env=env,
                 check=True,
@@ -42,7 +46,7 @@ class PytorchShellScriptsTest(unittest.TestCase):
             self.assertNotIn("pip install torch", calls)
             self.assertNotIn("pip install tensorflow", calls)
 
-    def test_export_uses_latest_model_and_torch_backend(self) -> None:
+    def test_export_uses_latest_model_and_tensorflow_backend(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = pathlib.Path(tmp_dir)
             train_dir = root / "trained"
@@ -61,8 +65,7 @@ class PytorchShellScriptsTest(unittest.TestCase):
             capture_path = root / "export-call.txt"
             fake_cli = root / "fast-plate-ocr"
             fake_cli.write_text(
-                "#!/usr/bin/env bash\n"
-                "printf '%s\\n' \"${KERAS_BACKEND}\" \"$@\" > \"${CAPTURE_PATH}\"\n",
+                '#!/usr/bin/env bash\nprintf \'%s\\n\' "${KERAS_BACKEND}" "$@" > "${CAPTURE_PATH}"\n',
                 encoding="utf-8",
             )
             fake_cli.chmod(0o755)
@@ -80,18 +83,22 @@ class PytorchShellScriptsTest(unittest.TestCase):
             )
 
             subprocess.run(
-                [str(EXPORT_SCRIPT), "--no-simplify"],
+                workflow_command("export", "--no-simplify"),
                 cwd=PROJECT_ROOT,
                 env=env,
                 check=True,
             )
 
             captured = capture_path.read_text(encoding="utf-8").splitlines()
-            self.assertEqual(captured[0], "torch")
+            self.assertEqual(captured[0], "tensorflow")
             self.assertEqual(captured[1], "export")
             self.assertIn(str(new_model), captured)
             self.assertIn(str(new_run / "plate_config.yaml"), captured)
             self.assertIn("onnx", captured)
+            self.assertIn("--no-skip-validation", captured)
+            self.assertEqual(captured[captured.index("--onnx-opset-version") + 1], "13")
+            self.assertEqual(captured[captured.index("--onnx-input-dtype") + 1], "float32")
+            self.assertEqual(captured[captured.index("--onnx-data-format") + 1], "channels_last")
             self.assertEqual(captured[-1], "--no-simplify")
 
 

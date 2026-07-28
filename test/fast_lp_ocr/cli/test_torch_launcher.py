@@ -1,19 +1,22 @@
 import os
 import pathlib
 import subprocess
+import sys
 import tempfile
 import unittest
 
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[3]
-LAUNCHER = PROJECT_ROOT / "scripts" / "train_cblprd_torch.sh"
+WORKFLOW = PROJECT_ROOT / "scripts" / "plate_workflow.py"
+
+
+def workflow_command(*args: str) -> list[str]:
+    return [sys.executable, str(WORKFLOW), *args]
 
 
 class TorchLauncherTest(unittest.TestCase):
-    def run_launcher(
-        self, *args: str, visible_devices: str = "existing", gpu_env: str | None = None
-    ) -> list[str]:
-        self.assertTrue(LAUNCHER.is_file(), f"launcher missing: {LAUNCHER}")
+    def run_launcher(self, *args: str, visible_devices: str = "existing", gpu_env: str | None = None) -> list[str]:
+        self.assertTrue(WORKFLOW.is_file(), f"workflow missing: {WORKFLOW}")
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = pathlib.Path(tmp_dir)
@@ -30,8 +33,8 @@ class TorchLauncherTest(unittest.TestCase):
             fake_cli = root / "fake-fast-plate-ocr"
             fake_cli.write_text(
                 "#!/usr/bin/env bash\n"
-                "printf '%s\\n' \"${KERAS_BACKEND}\" \"${NO_ALBUMENTATIONS_UPDATE}\" "
-                "\"${CUDA_VISIBLE_DEVICES:-}\" \"$@\" "
+                'printf \'%s\\n\' "${KERAS_BACKEND}" "${NO_ALBUMENTATIONS_UPDATE}" '
+                '"${CUDA_VISIBLE_DEVICES:-}" "$@" '
                 '> "${CAPTURE_PATH}"\n',
                 encoding="utf-8",
             )
@@ -51,7 +54,7 @@ class TorchLauncherTest(unittest.TestCase):
             else:
                 env.pop("FAST_PLATE_OCR_GPU", None)
             subprocess.run(
-                [str(LAUNCHER), *args],
+                workflow_command("train", *args),
                 cwd=PROJECT_ROOT,
                 env=env,
                 check=True,
@@ -80,9 +83,7 @@ class TorchLauncherTest(unittest.TestCase):
         epochs_index = captured.index("--epochs")
         self.assertEqual(captured[epochs_index + 1], "3")
         output_index = captured.index("--output-dir")
-        self.assertEqual(
-            captured[output_index + 1], str(PROJECT_ROOT / "trained_models" / "quick_test")
-        )
+        self.assertEqual(captured[output_index + 1], str(PROJECT_ROOT / "trained_models" / "quick_test"))
 
     def test_gpu_option_sets_cuda_visible_devices_without_forwarding_it(self) -> None:
         captured = self.run_launcher("--gpu", "2")
@@ -98,7 +99,7 @@ class TorchLauncherTest(unittest.TestCase):
 
     def test_rejects_invalid_gpu_id(self) -> None:
         completed = subprocess.run(
-            [str(LAUNCHER), "--gpu", "invalid"],
+            workflow_command("train", "--gpu", "invalid"),
             cwd=PROJECT_ROOT,
             check=False,
             capture_output=True,
