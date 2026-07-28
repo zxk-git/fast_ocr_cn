@@ -1,0 +1,9 @@
+max_plate_slots: 8
+alphabet: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ临云京使冀吉学宁川挂新晋桂沪津浙渝港湘澳琼甘皖粤苏蒙藏豫贵赣辽鄂闽陕青领鲁黑_"
+pad_char: '_'
+img_height: 64
+img_width: 128
+keep_aspect_ratio: true
+interpolation: linear
+image_color_mode: rgb
+padding_color: 114
