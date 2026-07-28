@@ -1,0 +1,118 @@
+site_name: FastPlateOCR
+site_author: ankandrew
+site_description: Fast & Lightweight License Plate OCR
+repo_url: https://github.com/ankandrew/fast-plate-ocr
+theme:
+  name: material
+  features:
+    - content.code.annotate
+    - content.code.copy
+    - content.footnote.tooltips
+    - header.autohide
+    - navigation.footer
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.path
+    - navigation.sections
+    - search.highlight
+    - search.suggest
+    - toc.follow
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/lightbulb-outline
+        name: Switch to dark mode
+    - scheme: slate
+      toggle:
+        icon: material/lightbulb
+        name: Switch to light mode
+nav:
+  - Get Started:
+      - Introduction: index.md
+      - Installation: installation.md
+  - Inference:
+      - Running Inference: inference/running_inference.md
+      - Available Models: inference/model_zoo.md
+  - Training:
+      - Intro: training/intro.md
+      - Dataset: training/dataset.md
+      - Configs:
+          - Plate Config: training/config/plate_config.md
+          - Model Config: training/config/model_config.md
+      - Metrics: training/metrics.md
+      - CLI:
+          - Train: training/cli/train.md
+          - Validate: training/cli/valid.md
+          - Export: training/cli/export.md
+          - Validate Dataset: training/cli/validate_dataset.md
+          - Visualize Augmentation: training/cli/visualize_augmentation.md
+          - Visualize Predictions: training/cli/visualize_predictions.md
+          - Dataset Stats: training/cli/dataset_stats.md
+      - Backend: training/backend.md
+  - Reference:
+      - Overview: reference/index.md
+      - Public API:
+          - Package: reference/public_api.md
+          - Inference:
+              - LicensePlateRecognizer: reference/inference/inference_class.md
+              - PlateConfig: reference/inference/plate_config.md
+              - Model Hub: reference/inference/hub.md
+          - Types: reference/core/types.md
+      - Training:
+          - Model Schema: reference/train/model.md
+          - Plate Config: reference/train/plate_config.md
+      - Internals:
+          - Process: reference/core/process.md
+          - Utils: reference/core/utils.md
+  - Contributing:
+      - Development: contributing/development.md
+plugins:
+  - search
+  - mike:
+      alias_type: symlink
+      canonical_version: latest
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [ . ]
+          options:
+            members_order: source
+            separate_signature: true
+            filters: [ "!^_" ]
+            docstring_options:
+              ignore_init_summary: true
+            merge_init_into_class: true
+            show_signature: true
+            show_signature_annotations: true
+            show_object_full_path: false
+            signature_crossrefs: true
+            extra:
+              show_type_annotations: true
+              show_variable_annotations: true
+          inventories:
+            - url: https://docs.python.org/3/objects.inv
+              domains: [ py, std ]
+            - url: https://typing-extensions.readthedocs.io/en/latest/objects.inv
+extra:
+  version:
+    provider: mike
+  generator: false
+  social:
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/fast-plate-ocr/
+    - icon: fontawesome/brands/github
+      link: https://github.com/ankandrew/fast-plate-ocr
+markdown_extensions:
+  - admonition
+  - footnotes
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.details
+  - pymdownx.superfences
+  - toc:
+      permalink: true
+      title: Page contents

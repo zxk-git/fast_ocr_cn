@@ -1,0 +1,27 @@
+# Keras training dependencies for the existing PyTorch/PPU environment.
+# Keep NumPy on the 1.x ABI to minimize risk to the vendor PyTorch build.
+numpy>=1.24.4,<2
+scipy==1.15.3
+keras==3.12.1
+
+# The PPU package index replaces these two Albucore dependencies with local
+# builds that do not support this torch 2.4.0/CUDA 12.4 image. Use the standard
+# CPython 3.10 x86_64 wheels recorded in uv.lock.
+simsimd @ https://files.pythonhosted.org/packages/6d/a0/84e128cc7be66797132c1279fc359a581e54c3b86f71e7e13604e006d8de/simsimd-6.5.12-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+stringzilla @ https://files.pythonhosted.org/packages/f4/6e/678528037ceecedf990828dfb3bee130d57a4c79ad4da6cc231ddb36afb3/stringzilla-4.6.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl
+
+albumentations==2.0.8
+click==8.3.1
+matplotlib==3.10.8
+opencv-python-headless==4.11.0.86
+pandas==2.3.3
+pillow==12.0.0
+pydantic==2.12.5
+pyyaml>=6.0,<7
+rich==14.2.0
+scikit-learn==1.7.2
+tensorboard==2.19.0
+tqdm==4.67.1
+
+# Verification-only dependency used to run the repository's existing tests.
+pytest==9.0.3
