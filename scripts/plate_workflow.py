@@ -10,7 +10,7 @@ import sys
 
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
-DEFAULT_DATASET_ROOT = pathlib.Path("/zxk/plate_ocr/plate/CBLPRD-330K/fast-plate-ocr")
+DEFAULT_DATASET_ROOT = pathlib.Path("/zxk/plate_ocr/plate/FastOCRData")
 DEFAULT_TRAIN_OUTPUT = PROJECT_ROOT / "trained_models" / "cblprd_cct_s_v2_torch"
 ONNX_PACKAGES = ("onnx==1.17.0", "onnxruntime==1.23.2", "onnxscript==0.1.0", "onnxslim==0.1.82")
 
