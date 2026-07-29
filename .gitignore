@@ -177,9 +177,6 @@ Desktop.ini
 # Notebooks
 **/.ipynb_checkpoints/
 
-# Trained models
-**/trained_models/
-
 # Model artifacts
 *.keras
 *.h5
