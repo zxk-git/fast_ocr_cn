@@ -177,11 +177,6 @@ Desktop.ini
 # Notebooks
 **/.ipynb_checkpoints/
 
-# Model artifacts
-*.keras
-*.h5
-*.hdf5
-*.weights.h5
 
 # TensorFlow ckpts
 checkpoint
@@ -202,10 +197,6 @@ logs/
 runs/
 tb_logs/
 tensorboard/
-
-# ONNX related
-*.onnx
-*.ort
 
 # Other Export formats
 *.tflite
