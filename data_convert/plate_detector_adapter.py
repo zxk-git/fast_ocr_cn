@@ -97,8 +97,8 @@ class _legacy_full_model_load:
 class Yolov5FaceLandmarkDetector:
     """封装 we0091234/Chinese_license_plate_detection_recognition 的检测模型推理。
 
-    只暴露一个方法 detect(img_bgr) -> PlateDetection | None，
-    取置信度最高的一个检测框；一张图片理论上只有一块车牌（CBLPRD 已经是裁剪好的单车牌图）。
+    detect(img_bgr)         -> PlateDetection | None  取置信度最高的单框（原逻辑）。
+    detect_all(img_bgr)     -> list[PlateDetection]    返回所有高于 conf_thres 的框（按置信度降序）。
     """
 
     def __init__(
@@ -208,6 +208,48 @@ class Yolov5FaceLandmarkDetector:
             return None
         conf, landmarks, class_num = best
         return PlateDetection(landmarks=landmarks, class_id=class_num, conf=conf)
+
+    def detect_all(self, img_bgr: np.ndarray) -> list["PlateDetection"]:
+        """返回所有置信度超过 ``conf_thres`` 的检测框（按置信度降序排列）。
+
+        推理计算与 ``detect`` 完全一致，只是不丢弃非最高分的框。
+        """
+        torch = self._torch
+        orgimg = img_bgr
+        h0, w0 = orgimg.shape[:2]
+        r = self.img_size / max(h0, w0)
+        img0 = orgimg
+        if r != 1:
+            interp = cv2.INTER_AREA if r < 1 else cv2.INTER_LINEAR
+            img0 = cv2.resize(orgimg, (int(w0 * r), int(h0 * r)), interpolation=interp)
+
+        img = self._letterbox(img0, new_shape=self.img_size)[0]
+        img = img[:, :, ::-1].transpose(2, 0, 1).copy()
+        img_t = torch.from_numpy(img).to(self.device).float() / 255.0
+        if img_t.ndimension() == 3:
+            img_t = img_t.unsqueeze(0)
+
+        with torch.no_grad():
+            pred = self.model(img_t)[0]
+        pred = self._nms(pred, self.conf_thres, self.iou_thres)
+
+        results: list[PlateDetection] = []
+        for det in pred:
+            if not len(det):
+                continue
+            det[:, :4] = self._scale_coords(img_t.shape[2:], det[:, :4], orgimg.shape).round()
+            det[:, 5:13] = self._scale_coords_landmarks(img_t.shape[2:], det[:, 5:13], orgimg.shape).round()
+            for j in range(det.size()[0]):
+                conf = float(det[j, 4].cpu().numpy())
+                landmarks_flat = det[j, 5:13].view(-1).tolist()
+                class_num = int(det[j, 13].cpu().numpy())
+                landmarks = np.array(
+                    [[landmarks_flat[2 * i], landmarks_flat[2 * i + 1]] for i in range(4)],
+                    dtype="float32",
+                )
+                results.append(PlateDetection(landmarks=landmarks, class_id=class_num, conf=conf))
+        results.sort(key=lambda d: d.conf, reverse=True)
+        return results
 
 
 def self_check(repo_path: Path, weights_path: Path, sample_image: Path) -> None:

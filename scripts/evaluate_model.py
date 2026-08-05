@@ -254,11 +254,11 @@ def run_evaluation(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--model", default="/zxk/plate_ocr/plate/fast-plate-ocr/trained_models/cblprd_ccpd_cct_s_v2_torch/2026-07-29_13-47-11/best.keras",
+        "--model", default="/home/zxk/ai_lab_project/Dataset/plate/fast-plate-ocr/trained_models/cblprd_ccpd_cct_s_v2_torch/2026-07-29_13-47-11/best.keras",
         type=pathlib.Path, help="Path to a .keras or .onnx model",
     )
     parser.add_argument(
-        "--dataset", default='/zxk/plate_ocr/plate/CCPD/fast-plate-ocr', type=pathlib.Path,
+        "--dataset", default='/home/zxk/ai_lab_project/Dataset/plate/CCPD/CCPD2020/ccpd_green-fast-plate-ocr', type=pathlib.Path,
         help="Annotations CSV, its directory, or a root containing grouped datasets",
     )
     parser.add_argument(
@@ -267,10 +267,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto", help="Inference device")
     parser.add_argument("--gpu", type=int, default=1, help="GPU index used by torch or ONNX Runtime")
-    parser.add_argument("--batch-size", type=int, default=256, help="Inference batch size")
+    parser.add_argument("--batch-size", type=int, default=64, help="Inference batch size")
     parser.add_argument("--workers", type=int, default=8, help="Parallel image loading threads")
     parser.add_argument("--output", type=pathlib.Path, 
-        default='/zxk/plate_ocr/plate/CCPD/fast-plate-ocr/evaluate_result.json', 
+        default='/home/zxk/ai_lab_project/Dataset/plate/CCPD/CCPD2020/ccpd_green-fast-plate-ocr/evaluate_result.json', 
         help="Optional JSON report path")
     parser.add_argument("--no-progress", action="store_true", help="Disable image progress bars")
     return parser

@@ -132,7 +132,7 @@ def existing_file(path: pathlib.Path, label: str) -> pathlib.Path:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--image", type=pathlib.Path, default='data/image.png', help="Path to one cropped plate image")
+    parser.add_argument("--image", type=pathlib.Path, default='/home/zxk/ai_lab_project/Dataset/plate/fast-plate-ocr/data/image.png', help="Path to one cropped plate image")
     parser.add_argument("--model", type=pathlib.Path, help="Path to a .onnx or .keras model")
     parser.add_argument("--plate-config", type=pathlib.Path, default='config/cn_plate_config.yaml', help="Plate config; defaults beside the model")
     parser.add_argument(
