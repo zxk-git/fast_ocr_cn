@@ -38,7 +38,7 @@ CSV_FIELDS = [
 ]
 
 DEFAULT_DATASET_ROOT = Path(
-    "/home/zxk/ai_lab_project/Dataset/plate/CCPD/CCPD2020"
+    "/zxk/plate_ocr/plate_ocr/asserts/CCPD/CCPD2020"
 )
 
 LOGGER = logging.getLogger("export_ccpd2020_labels")

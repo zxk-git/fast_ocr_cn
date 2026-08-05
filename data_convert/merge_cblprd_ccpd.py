@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Merge CBLPRD and CCPD fast-plate-ocr datasets for PyTorch training."""
+"""Merge CBLPRD, CCPD2019, and CCPD2020 datasets for PyTorch training."""
 
 from __future__ import annotations
 
@@ -21,16 +21,13 @@ import yaml
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CBLPRD_ROOT = Path("/zxk/plate_ocr/plate/CBLPRD-330K/fast-plate-ocr")
 DEFAULT_CCPD_ROOT = Path("/zxk/plate_ocr/plate/CCPD/fast-plate-ocr")
+DEFAULT_CCPD2020_ROOT = Path("/zxk/plate_ocr/plate_ocr/asserts/CCPD/CCPD2020/fast-plate-ocr")
 DEFAULT_PLATE_CONFIG = PROJECT_ROOT / "config" / "cn_plate_config.yaml"
+DEFAULT_DATASET_RATIO = 1.0
 DEFAULT_CCPD_VAL_RATIO = 0.2
 CCPD_GROUPS = (
-    "ccpd_base",
-    "ccpd_challenge",
-    "ccpd_db",
-    "ccpd_fn",
-    "ccpd_rotate",
-    "ccpd_tilt",
-    "ccpd_weather",
+    "ccpd_base", "ccpd_challenge", "ccpd_db", "ccpd_fn",
+    "ccpd_rotate", "ccpd_tilt", "ccpd_weather",
 )
 EXCLUDED_CCPD_GROUPS = ("ccpd_blur",)
 LOGGER = logging.getLogger("merge_cblprd_ccpd")
@@ -99,23 +96,59 @@ def _read_annotations(dataset_dir: Path) -> list[SourceRow]:
 
 def _prefixed_rows(rows: list[SourceRow], source_group: str) -> list[MergedRow]:
     prefix = source_group.replace("/", "_")
-    return [
-        MergedRow(f"{prefix}__{row.basename}", row.source_path, row.plate_text, source_group)
-        for row in rows
-    ]
+    return [MergedRow(f"{prefix}__{row.basename}", row.source_path, row.plate_text, source_group) for row in rows]
 
 
-def _partition_group_rows(rows: list[SourceRow], group: str, val_ratio: float) -> tuple[list[SourceRow], list[SourceRow]]:
+def _rank_rows(rows: list[SourceRow], namespace: str) -> list[SourceRow]:
+    return sorted(rows, key=lambda row: hashlib.sha256(f"{namespace}/{row.basename}".encode()).digest())
+
+
+def _select_rows(rows: list[SourceRow], source_group: str, ratio: float) -> list[SourceRow]:
+    if ratio == 0:
+        return []
+    selected_count = max(1, min(len(rows), round(len(rows) * ratio)))
+    selected_names = {row.basename for row in _rank_rows(rows, f"selection/{source_group}")[:selected_count]}
+    return [row for row in rows if row.basename in selected_names]
+
+
+def _partition_group_rows(
+    rows: list[SourceRow], group: str, val_ratio: float
+) -> tuple[list[SourceRow], list[SourceRow]]:
     if len(rows) < 2:
         raise ConversionError(f"{group} needs at least two samples for train and val")
     val_count = max(1, min(len(rows) - 1, round(len(rows) * val_ratio)))
-    ranked = sorted(
-        rows,
-        key=lambda row: hashlib.sha256(f"{group}/{row.basename}".encode("utf-8")).digest(),
-    )
+    ranked = _rank_rows(rows, group)
     val_names = {row.basename for row in ranked[:val_count]}
     train_rows = [row for row in rows if row.basename not in val_names]
     val_rows = [row for row in rows if row.basename in val_names]
+    return train_rows, val_rows
+
+
+def _read_split_dataset(root: Path, dataset: str, ratio: float) -> tuple[list[MergedRow], list[MergedRow]]:
+    selected_splits = []
+    for split in ("train", "val"):
+        source_group = f"{dataset}__{split}"
+        source_rows = _read_annotations(root / split)
+        selected = _select_rows(source_rows, source_group, ratio)
+        LOGGER.info("selected %s: %d/%d", source_group, len(selected), len(source_rows))
+        selected_splits.append(_prefixed_rows(selected, source_group))
+    return selected_splits[0], selected_splits[1]
+
+
+def _read_ccpd_rows(root: Path, ratio: float, val_ratio: float) -> tuple[list[MergedRow], list[MergedRow]]:
+    train_rows: list[MergedRow] = []
+    val_rows: list[MergedRow] = []
+    for group in CCPD_GROUPS:
+        source_group = f"ccpd__{group}"
+        source_rows = _read_annotations(root / group)
+        selected = _select_rows(source_rows, source_group, ratio)
+        group_train, group_val = _partition_group_rows(selected, group, val_ratio)
+        LOGGER.info(
+            "selected %s: %d/%d; train=%d val=%d",
+            group, len(selected), len(source_rows), len(group_train), len(group_val),
+        )
+        train_rows.extend(_prefixed_rows(group_train, source_group))
+        val_rows.extend(_prefixed_rows(group_val, source_group))
     return train_rows, val_rows
 
 
@@ -165,19 +198,20 @@ def _materialize_split(rows: list[MergedRow], split_dir: Path) -> None:
 
 
 def _split_report(rows: list[MergedRow]) -> dict[str, object]:
-    return {
-        "total_rows": len(rows),
-        "source_group_counts": dict(sorted(Counter(row.source_group for row in rows).items())),
-    }
+    counts = Counter(row.source_group for row in rows)
+    return {"total_rows": len(rows), "source_group_counts": dict(sorted(counts.items()))}
 
 
 def _write_report(
-    output_file: Path, *, cblprd_root: Path, ccpd_root: Path,
+    output_file: Path, *, roots: dict[str, Path], ratios: dict[str, float],
     train_rows: list[MergedRow], val_rows: list[MergedRow], val_ratio: float,
 ) -> None:
     report = {
-        "cblprd_root": str(cblprd_root),
-        "ccpd_root": str(ccpd_root),
+        "cblprd_root": str(roots["cblprd"]),
+        "ccpd_root": str(roots["ccpd2019"]),
+        "ccpd2020_root": str(roots["ccpd2020"]),
+        "dataset_inclusion_ratios": ratios,
+        "dataset_selection_strategy": "sha256_ranked_by_source_group",
         "excluded_ccpd_groups": list(EXCLUDED_CCPD_GROUPS),
         "ccpd_validation_ratio": val_ratio,
         "ccpd_split_strategy": "sha256_ranked_stratified_by_group",
@@ -188,26 +222,31 @@ def _write_report(
 
 
 def merge_datasets(
-    cblprd_root: Path | str, ccpd_root: Path | str, *, out_dir: Path | str,
+    cblprd_root: Path | str, ccpd_root: Path | str,
+    ccpd2020_root: Path | str = DEFAULT_CCPD2020_ROOT, *, out_dir: Path | str,
+    cblprd_ratio: float = DEFAULT_DATASET_RATIO,
+    ccpd_ratio: float = DEFAULT_DATASET_RATIO,
+    ccpd2020_ratio: float = DEFAULT_DATASET_RATIO,
     ccpd_val_ratio: float = DEFAULT_CCPD_VAL_RATIO,
     plate_config: Path | str = DEFAULT_PLATE_CONFIG,
 ) -> Path:
-    """Build one hard-linked training dataset from converted CBLPRD and CCPD."""
+    """Build one hard-linked dataset from converted CBLPRD and CCPD datasets."""
+    option_ratios = {"cblprd_ratio": cblprd_ratio, "ccpd_ratio": ccpd_ratio, "ccpd2020_ratio": ccpd2020_ratio}
+    for name, ratio in option_ratios.items():
+        if not 0 <= ratio <= 1:
+            raise ConversionError(f"{name} must be between zero and one")
     if not 0 < ccpd_val_ratio < 1:
         raise ConversionError("ccpd_val_ratio must be greater than zero and less than one")
-    cbl_root, ccpd_root = Path(cblprd_root), Path(ccpd_root)
+    roots = {"cblprd": Path(cblprd_root), "ccpd2019": Path(ccpd_root), "ccpd2020": Path(ccpd2020_root)}
+    ratios = {"cblprd": cblprd_ratio, "ccpd2019": ccpd_ratio, "ccpd2020": ccpd2020_ratio}
     output_dir, config_path = Path(out_dir), Path(plate_config)
     _ensure_output_available(output_dir)
-    LOGGER.info("reading CBLPRD annotations")
-    train_rows = _prefixed_rows(_read_annotations(cbl_root / "train"), "cblprd__train")
-    val_rows = _prefixed_rows(_read_annotations(cbl_root / "val"), "cblprd__val")
-    for group in CCPD_GROUPS:
-        group_train, group_val = _partition_group_rows(
-            _read_annotations(ccpd_root / group), group, ccpd_val_ratio
-        )
-        LOGGER.info("partitioned %s: train=%d val=%d", group, len(group_train), len(group_val))
-        train_rows.extend(_prefixed_rows(group_train, f"ccpd__{group}"))
-        val_rows.extend(_prefixed_rows(group_val, f"ccpd__{group}"))
+    cbl_rows = _read_split_dataset(roots["cblprd"], "cblprd", cblprd_ratio) if cblprd_ratio else ([], [])
+    ccpd_rows = _read_ccpd_rows(roots["ccpd2019"], ccpd_ratio, ccpd_val_ratio) if ccpd_ratio else ([], [])
+    ccpd2020_rows = (_read_split_dataset(roots["ccpd2020"], "ccpd2020", ccpd2020_ratio)
+                     if ccpd2020_ratio else ([], []))
+    train_rows = cbl_rows[0] + ccpd_rows[0] + ccpd2020_rows[0]
+    val_rows = cbl_rows[1] + ccpd_rows[1] + ccpd2020_rows[1]
     _validate_rows(train_rows, "train")
     _validate_rows(val_rows, "val")
     _validate_plate_config(config_path, train_rows + val_rows)
@@ -218,9 +257,8 @@ def merge_datasets(
         _materialize_split(val_rows, work_dir / "val")
         shutil.copyfile(config_path, work_dir / "plate_config.yaml")
         _write_report(
-            work_dir / "merge_report.json", cblprd_root=cbl_root,
-            ccpd_root=ccpd_root, train_rows=train_rows,
-            val_rows=val_rows, val_ratio=ccpd_val_ratio,
+            work_dir / "merge_report.json", roots=roots, ratios=ratios,
+            train_rows=train_rows, val_rows=val_rows, val_ratio=ccpd_val_ratio,
         )
         work_dir.replace(output_dir)
     except Exception:
@@ -234,14 +272,20 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cblprd-root", type=Path, default=DEFAULT_CBLPRD_ROOT)
     parser.add_argument("--ccpd-root", type=Path, default=DEFAULT_CCPD_ROOT)
+    parser.add_argument("--ccpd2020-root", type=Path, default=DEFAULT_CCPD2020_ROOT)
     parser.add_argument("--out-dir", type=Path, required=True)
+    parser.add_argument("--cblprd-ratio", type=float, default=DEFAULT_DATASET_RATIO)
+    parser.add_argument("--ccpd-ratio", type=float, default=DEFAULT_DATASET_RATIO)
+    parser.add_argument("--ccpd2020-ratio", type=float, default=DEFAULT_DATASET_RATIO)
     parser.add_argument("--ccpd-val-ratio", type=float, default=DEFAULT_CCPD_VAL_RATIO)
     parser.add_argument("--plate-config", type=Path, default=DEFAULT_PLATE_CONFIG)
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     try:
         output_dir = merge_datasets(
-            args.cblprd_root, args.ccpd_root, out_dir=args.out_dir,
+            args.cblprd_root, args.ccpd_root, args.ccpd2020_root, out_dir=args.out_dir,
+            cblprd_ratio=args.cblprd_ratio, ccpd_ratio=args.ccpd_ratio,
+            ccpd2020_ratio=args.ccpd2020_ratio,
             ccpd_val_ratio=args.ccpd_val_ratio,
             plate_config=args.plate_config,
         )

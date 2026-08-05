@@ -10,7 +10,7 @@ OCR 模型接收已经裁剪好的车牌图片，只负责识别车牌文字。�
 
 - 使用 PyTorch 作为 Keras 3 训练后端，不安装 TensorFlow 训练依赖。
 - 支持指定 GPU、快速训练验证、完整训练和断点模型输出。
-- 支持 CBLPRD-330K 与 CCPD2019 数据转换及合并。
+- 支持 CBLPRD-330K、CCPD2019 与 CCPD2020 数据转换及合并。
 - 支持 `.keras` 和 `.onnx` 两种模型的统一数据集评估。
 - 评估结果使用中文展示，包含车牌准确率、字符准确率、长度准确率、推理速度等指标。
 - 提供 ONNX 单图推理及 Keras/ONNX 导出前后结果对比工具。
@@ -287,24 +287,41 @@ python3 data_convert/CCPD2Fastocr.py \
 CCPD 文件名中包含车牌文字和四边形坐标。转换脚本会解析标签、透视矫正车牌区域，并按 CCPD 子集生成
 `annotations.csv`。
 
-### 3. 合并 CBLPRD 与 CCPD
+### 3. 转换 CCPD2020
+
+```bash
+python3 data_convert/CCPD20202Fastocr.py \
+  --dataset-root /zxk/plate_ocr/plate_ocr/asserts/CCPD/CCPD2020 \
+  --out-dir /zxk/plate_ocr/plate_ocr/asserts/CCPD/CCPD2020/fast-plate-ocr \
+  --workers 16
+```
+
+转换脚本将 CCPD2020 的 `train` 与 `test` 合并为训练集，并保留原始 `val` 作为验证集。
+
+### 4. 合并 CBLPRD、CCPD2019 与 CCPD2020
 
 ```bash
 python3 data_convert/merge_cblprd_ccpd.py \
   --cblprd-root /zxk/plate_ocr/plate/CBLPRD-330K/fast-plate-ocr \
   --ccpd-root /zxk/plate_ocr/plate/CCPD/fast-plate-ocr \
+  --ccpd2020-root /zxk/plate_ocr/plate_ocr/asserts/CCPD/CCPD2020/fast-plate-ocr \
   --out-dir /zxk/plate_ocr/plate/FastOCRData \
+  --cblprd-ratio 1.0 \
+  --ccpd-ratio 1.0 \
+  --ccpd2020-ratio 1.0 \
   --ccpd-val-ratio 0.2
 ```
 
 合并规则：
 
-- CBLPRD 保留自身的 `train` 和 `val` 划分。
+- CBLPRD 与 CCPD2020 保留各自的 `train` 和 `val` 划分，并在每个划分内独立抽样。
 - 排除 `ccpd_blur`。
 - `ccpd_base`、`ccpd_challenge`、`ccpd_db`、`ccpd_fn`、`ccpd_rotate`、`ccpd_tilt` 和
-  `ccpd_weather` 分别按比例划分训练集和验证集。
+  `ccpd_weather` 先按 CCPD2019 加入比例抽样，再分别划分训练集和验证集。
+- `--cblprd-ratio`、`--ccpd-ratio` 和 `--ccpd2020-ratio` 分别控制三套数据的加入比例，
+  取值范围为 `0` 到 `1`，默认均为 `1.0`；设为 `0` 时跳过对应数据集。
 - 默认 `--ccpd-val-ratio` 为 `0.2`，即每个允许的 CCPD 子集约 20% 用于验证。
-- CCPD 划分基于分组名和文件名的 SHA-256 排序，相同数据和比例会得到相同结果。
+- 数据抽样与 CCPD2019 划分基于数据来源、分组名和文件名的 SHA-256 排序，相同输入与比例会得到相同结果。
 - 输出图片使用硬链接，源数据与输出目录需要位于支持硬链接的同一文件系统。
 - 输出目录必须不存在或为空；失败时临时输出会自动清理。
 
@@ -577,7 +594,8 @@ python3 scripts/compare_model_outputs.py \
 | `scripts/compare_model_outputs.py` | 比较 Keras 与 ONNX 输出 |
 | `data_convert/CBLPRD2Fastocr.py` | 转换 CBLPRD-330K |
 | `data_convert/CCPD2Fastocr.py` | 转换并裁剪 CCPD2019 |
-| `data_convert/merge_cblprd_ccpd.py` | 合并两套训练数据 |
+| `data_convert/CCPD20202Fastocr.py` | 转换并裁剪 CCPD2020 |
+| `data_convert/merge_cblprd_ccpd.py` | 合并 CBLPRD、CCPD2019 与 CCPD2020 训练数据 |
 
 所有脚本都可以通过 `--help` 查看完整参数，例如：
 

@@ -47,7 +47,7 @@ from data_convert.CCPD2Fastocr import (
 )
 
 DEFAULT_DATASET_ROOT = Path(
-    "/home/zxk/ai_lab_project/Dataset/plate/CCPD/CCPD2020"
+    "/zxk/plate_ocr/plate_ocr/asserts/CCPD/CCPD2020"
 )
 DEFAULT_PLATE_CONFIG = _PROJECT_ROOT / "config" / "cn_plate_config.yaml"
 DEFAULT_WORKERS = 16
@@ -334,7 +334,7 @@ def main(argv: list[str] | None = None) -> int:
         "--out-dir",
         type=Path,
         default=None,
-        help="Output directory (default: {dataset-root}/fast-plate-ocr)",
+        help="Output directory (default: {dataset-root}/ccpd_green-fast-plate-ocr)",
     )
     parser.add_argument(
         "--workers",

@@ -254,11 +254,11 @@ def run_evaluation(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--model", default="/home/zxk/ai_lab_project/Dataset/plate/fast-plate-ocr/trained_models/cblprd_ccpd_cct_s_v2_torch/2026-07-29_13-47-11/best.keras",
+        "--model", default="/zxk/plate_ocr/plate_ocr/fast-plate-ocr/trained_models/cblprd_ccpd_cct_s_v2_torch/2026-07-29_13-47-11/best.keras",
         type=pathlib.Path, help="Path to a .keras or .onnx model",
     )
     parser.add_argument(
-        "--dataset", default='/home/zxk/ai_lab_project/Dataset/plate/CCPD/CCPD2020/ccpd_green-fast-plate-ocr', type=pathlib.Path,
+        "--dataset", default='/zxk/plate_ocr/plate_ocr/asserts/CCPD/CCPD2020/fast-plate-ocr', type=pathlib.Path,
         help="Annotations CSV, its directory, or a root containing grouped datasets",
     )
     parser.add_argument(
@@ -270,7 +270,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--batch-size", type=int, default=64, help="Inference batch size")
     parser.add_argument("--workers", type=int, default=8, help="Parallel image loading threads")
     parser.add_argument("--output", type=pathlib.Path, 
-        default='/home/zxk/ai_lab_project/Dataset/plate/CCPD/CCPD2020/ccpd_green-fast-plate-ocr/evaluate_result.json', 
+        default='/zxk/plate_ocr/plate_ocr/asserts/CCPD/CCPD2020/fast-plate-ocr/evaluate_result.json', 
         help="Optional JSON report path")
     parser.add_argument("--no-progress", action="store_true", help="Disable image progress bars")
     return parser
