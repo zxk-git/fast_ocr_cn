@@ -81,9 +81,17 @@ def resolve_datasets(dataset: pathlib.Path) -> dict[str, pathlib.Path]:
     direct = path / "annotations.csv"
     if direct.is_file():
         return {path.name: direct.resolve()}
+    # Level 1: */annotations.csv  (e.g. CCPD groups with flat structure)
     grouped = {
         item.parent.name: item.resolve()
         for item in sorted(path.glob("*/annotations.csv"))
+    }
+    if grouped:
+        return grouped
+    # Level 2: */*/annotations.csv  (e.g. CCPD groups with train/val subdirs)
+    grouped = {
+        f"{item.parent.parent.name}/{item.parent.name}": item.resolve()
+        for item in sorted(path.glob("*/*/annotations.csv"))
     }
     if not grouped:
         raise FileNotFoundError(f"No annotations.csv found under: {path}")
@@ -337,7 +345,7 @@ def run_processing(
     annotation_files: dict[str, pathlib.Path] = {}
     for ds_path in datasets:
         resolved = resolve_datasets(ds_path)
-        root_label = ds_path.resolve().parent.name  # dataset collection name
+        root_label = ds_path.resolve().name  # use the directory itself, not its parent
         for name, csv_path in resolved.items():
             display_name = f"{root_label}/{name}" if len(datasets) > 1 else name
             if display_name in annotation_files:
@@ -430,7 +438,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--model",
-        default="/zxk/plate_ocr/plate_ocr/fast-plate-ocr/trained_models/cblprd_ccpd_cct_s_v2_torch/2026-07-29_13-47-11/best.keras",
+        default="/zxk/plate_ocr/plate_ocr/fast-plate-ocr/trained_models/fine_tuned/2026-08-06_16-24-08/best.keras",
         type=pathlib.Path,
         help="Path to a .keras or .onnx model",
     )
@@ -450,7 +458,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--output-dir",
-        default="/zxk/plate_ocr/plate_ocr/asserts/challenge_data",
+        default="/zxk/plate_ocr/plate_ocr/asserts/fine_challenge_data",
         type=pathlib.Path,
         help="Output directory for failure data in fastplateocr format",
     )
@@ -469,7 +477,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=512,
+        default=1024,
         help="Inference batch size (default: 64)",
     )
     return parser
