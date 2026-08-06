@@ -26,6 +26,7 @@ import logging
 import shutil
 import sys
 import tempfile
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,8 +47,26 @@ from data_convert.CCPD2Fastocr import (
     rectify_plate,
 )
 
+# Province abbreviation -> full name mapping
+PROVINCE_MAP: dict[str, str] = {
+    "京": "北京", "津": "天津", "沪": "上海", "渝": "重庆",
+    "冀": "河北", "晋": "山西", "蒙": "内蒙古", "辽": "辽宁",
+    "吉": "吉林", "黑": "黑龙江", "苏": "江苏", "浙": "浙江",
+    "皖": "安徽", "闽": "福建", "赣": "江西", "鲁": "山东",
+    "豫": "河南", "鄂": "湖北", "湘": "湖南", "粤": "广东",
+    "桂": "广西", "琼": "海南", "川": "四川", "贵": "贵州",
+    "云": "云南", "藏": "西藏", "陕": "陕西", "甘": "甘肃",
+    "青": "青海", "宁": "宁夏", "新": "新疆",
+}
+
+
+def _province_from_plate(plate_text: str) -> str:
+    if not plate_text:
+        return "未知"
+    return PROVINCE_MAP.get(plate_text[0], "其他")
+
 DEFAULT_DATASET_ROOT = Path(
-    "/zxk/plate_ocr/plate_ocr/asserts/CCPD/CCPD2020"
+    "/zxk/plate_ocr/plate_ocr/asserts/CCPD2020"
 )
 DEFAULT_PLATE_CONFIG = _PROJECT_ROOT / "config" / "cn_plate_config.yaml"
 DEFAULT_WORKERS = 16
@@ -225,6 +244,8 @@ def _write_report(
     workers: int,
 ) -> None:
     total = len(plate_texts)
+    length_dist = dict(sorted(Counter(str(len(t)) for t in plate_texts).items()))
+    province_dist = dict(sorted(Counter(_province_from_plate(t) for t in plate_texts).items()))
     report: dict[str, object] = {
         "dataset_root": str(root),
         "output_dir": str(output_dir),
@@ -233,6 +254,8 @@ def _write_report(
         "failure_count": 0,
         "errors": [],
         "max_plate_slots": 8,
+        "plate_length_distribution": length_dist,
+        "province_distribution": province_dist,
         "included_splits": sorted(split_stats.keys()),
         "splits": split_stats,
         "conversion": {
@@ -253,6 +276,47 @@ def _ensure_output_available(output_dir: Path) -> None:
         raise FileExistsError(f"output path is not a directory: {output_dir}")
     if output_dir.exists() and any(output_dir.iterdir()):
         raise FileExistsError(f"output directory is not empty: {output_dir}")
+
+
+def _print_summary(output_dir: Path) -> None:
+    report_path = output_dir / "conversion_report.json"
+    if not report_path.is_file():
+        return
+    with report_path.open("r", encoding="utf-8") as f:
+        r = json.load(f)
+    total = r.get("total_images", 0)
+    splits = r.get("splits", {})
+
+    print()
+    print("=" * 60)
+    print("  CCPD2020 数据转换统计报告")
+    print("=" * 60)
+    print(f"\n  📊 总体统计")
+    print(f"     输入图片总数        : {total}")
+    for sn in sorted(splits):
+        s = splits[sn]
+        tc = s.get("total_images", 0)
+        pct = tc / total * 100 if total > 0 else 0
+        print(f"     {sn:<10}            : {tc:>6} ({pct:5.1f}%)")
+
+    # Distribution tables
+    _print_distribution_table(r, "plate_length_distribution", "📏 车牌位数分布", "位数")
+    _print_distribution_table(r, "province_distribution", "🗺️  省份分布统计", "省份")
+    print("=" * 60)
+
+
+def _print_distribution_table(report: dict, key: str, title: str, label: str, top_n: int | None = None) -> None:
+    data = report.get(key, {})
+    if not data:
+        return
+    items = list(data.items())
+    if top_n and len(items) > top_n:
+        items = sorted(items, key=lambda x: x[1], reverse=True)[:top_n]
+    print(f"\n  {title}")
+    total = sum(v for _, v in items)
+    for name, count in items:
+        pct = count / total * 100 if total > 0 else 0.0
+        print(f"     {str(name):<12} : {count:>7}  ({pct:5.1f}%)")
 
 
 def convert_dataset(
@@ -319,6 +383,7 @@ def convert_dataset(
             shutil.rmtree(work_dir)
         raise
 
+    _print_summary(output_dir)
     return output_dir
 
 

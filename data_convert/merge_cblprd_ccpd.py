@@ -19,9 +19,10 @@ import yaml
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CBLPRD_ROOT = Path("/zxk/plate_ocr/plate/CBLPRD-330K/fast-plate-ocr")
-DEFAULT_CCPD_ROOT = Path("/zxk/plate_ocr/plate/CCPD/fast-plate-ocr")
-DEFAULT_CCPD2020_ROOT = Path("/zxk/plate_ocr/plate_ocr/asserts/CCPD/CCPD2020/fast-plate-ocr")
+DEFAULT_CBLPRD_ROOT = Path("/zxk/plate_ocr/plate_ocr/asserts/CBLPRD-330K/separate/single_layer")
+DEFAULT_CCPD_ROOT = Path("/zxk/plate_ocr/plate_ocr/asserts/CCPD/fast-plate-ocr")
+DEFAULT_CCPD2020_ROOT = Path("/zxk/plate_ocr/plate_ocr/asserts/CCPD2020/fast-plate-ocr")
+DEFAULT_CHALLENGE_ROOT = Path("/zxk/plate_ocr/plate_ocr/asserts/challenge_data")
 DEFAULT_PLATE_CONFIG = PROJECT_ROOT / "config" / "cn_plate_config.yaml"
 DEFAULT_DATASET_RATIO = 1.0
 DEFAULT_CCPD_VAL_RATIO = 0.2
@@ -89,9 +90,19 @@ def _read_annotations(dataset_dir: Path) -> list[SourceRow]:
             rows.append(SourceRow(basename, source_path, plate_text))
     if not rows:
         raise ConversionError(f"annotations file is empty: {annotations_file}")
-    if len({row.basename for row in rows}) != len(rows):
-        raise ConversionError(f"duplicate image_path entries in {annotations_file}")
-    return rows
+    # Deduplicate by basename (keep first occurrence)
+    seen: set[str] = set()
+    deduped: list[SourceRow] = []
+    dup_count = 0
+    for row in rows:
+        if row.basename not in seen:
+            seen.add(row.basename)
+            deduped.append(row)
+        else:
+            dup_count += 1
+    if dup_count:
+        LOGGER.warning("%s: %d duplicate image_path entries removed", annotations_file, dup_count)
+    return deduped
 
 
 def _prefixed_rows(rows: list[SourceRow], source_group: str) -> list[MergedRow]:
@@ -135,20 +146,57 @@ def _read_split_dataset(root: Path, dataset: str, ratio: float) -> tuple[list[Me
     return selected_splits[0], selected_splits[1]
 
 
-def _read_ccpd_rows(root: Path, ratio: float, val_ratio: float) -> tuple[list[MergedRow], list[MergedRow]]:
+def _read_ccpd_rows(
+    root: Path, ratio: float, anhui_ratio: float, base_ratio: float
+) -> tuple[list[MergedRow], list[MergedRow]]:
+    """Read CCPD groups that already have train/val subdirectories, applying ratio selection."""
     train_rows: list[MergedRow] = []
     val_rows: list[MergedRow] = []
     for group in CCPD_GROUPS:
-        source_group = f"ccpd__{group}"
-        source_rows = _read_annotations(root / group)
-        selected = _select_rows(source_rows, source_group, ratio)
-        group_train, group_val = _partition_group_rows(selected, group, val_ratio)
+        # ccpd_base 使用独立比例控制总样本量（覆盖 anhui_ratio 和 ratio）
+        if group == "ccpd_base":
+            effective_ratio = base_ratio
+            effective_anhui_ratio = base_ratio
+        else:
+            effective_ratio = ratio
+            effective_anhui_ratio = anhui_ratio
+
+        group_dir = root / group
+        train_dir = group_dir / "train"
+        val_dir = group_dir / "val"
+        if not train_dir.is_dir() or not val_dir.is_dir():
+            raise ConversionError(f"{group_dir}: missing train/val subdirectories (run CCPD2Fastocr.py first)")
+
+        source_train = _read_annotations(train_dir)
+        source_val = _read_annotations(val_dir)
+
+        # Separate Anhui vs non-Anhui
+        def _is_anhui(r: SourceRow) -> bool:
+            return r.plate_text.startswith("皖")
+
+        train_anhui = [r for r in source_train if _is_anhui(r)]
+        train_other = [r for r in source_train if not _is_anhui(r)]
+        val_anhui = [r for r in source_val if _is_anhui(r)]
+        val_other = [r for r in source_val if not _is_anhui(r)]
+
+        # Apply independent ratios
+        train_selected = (_select_rows(train_anhui, f"ccpd_anhui_train__{group}", effective_anhui_ratio)
+                          + _select_rows(train_other, f"ccpd_other_train__{group}", effective_ratio))
+        val_selected = (_select_rows(val_anhui, f"ccpd_anhui_val__{group}", effective_anhui_ratio)
+                        + _select_rows(val_other, f"ccpd_other_val__{group}", effective_ratio))
+
         LOGGER.info(
-            "selected %s: %d/%d; train=%d val=%d",
-            group, len(selected), len(source_rows), len(group_train), len(group_val),
+            "selected %s: train=%d/%d val=%d/%d (安徽=%d/%d+%d/%d 其他=%d/%d+%d/%d)",
+            group,
+            len(train_selected), len(source_train), len(val_selected), len(source_val),
+            len([r for r in train_selected if r.plate_text.startswith("皖")]), len(train_anhui),
+            len([r for r in val_selected if r.plate_text.startswith("皖")]), len(val_anhui),
+            len([r for r in train_selected if not r.plate_text.startswith("皖")]), len(train_other),
+            len([r for r in val_selected if not r.plate_text.startswith("皖")]), len(val_other),
         )
-        train_rows.extend(_prefixed_rows(group_train, source_group))
-        val_rows.extend(_prefixed_rows(group_val, source_group))
+        source_group = f"ccpd__{group}"
+        train_rows.extend(_prefixed_rows(train_selected, source_group))
+        val_rows.extend(_prefixed_rows(val_selected, source_group))
     return train_rows, val_rows
 
 
@@ -197,6 +245,21 @@ def _materialize_split(rows: list[MergedRow], split_dir: Path) -> None:
     _write_annotations(rows, split_dir / "annotations.csv")
 
 
+def _read_challenge_data(
+    root: Path, ratio: float, val_ratio: float
+) -> tuple[list[MergedRow], list[MergedRow]]:
+    """Read challenge_data (flat annotations.csv + images/), split into train/val."""
+    source_rows = _read_annotations(root)  # root 下直接有 annotations.csv
+    selected = _select_rows(source_rows, "challenge", ratio)
+    val_count = max(1, min(len(selected) - 1, round(len(selected) * val_ratio)))
+    ranked = _rank_rows(selected, "challenge")
+    train = ranked[val_count:]
+    val = ranked[:val_count]
+    LOGGER.info("selected challenge_data: %d/%d; train=%d val=%d",
+                 len(selected), len(source_rows), len(train), len(val))
+    return _prefixed_rows(train, "challenge"), _prefixed_rows(val, "challenge")
+
+
 def _split_report(rows: list[MergedRow]) -> dict[str, object]:
     counts = Counter(row.source_group for row in rows)
     return {"total_rows": len(rows), "source_group_counts": dict(sorted(counts.items()))}
@@ -222,31 +285,50 @@ def _write_report(
 
 
 def merge_datasets(
-    cblprd_root: Path | str, ccpd_root: Path | str,
-    ccpd2020_root: Path | str = DEFAULT_CCPD2020_ROOT, *, out_dir: Path | str,
+    cblprd_root: Path | str,
+    ccpd_root: Path | str,
+    ccpd2020_root: Path | str = DEFAULT_CCPD2020_ROOT,
+    *,
+    out_dir: Path | str,
     cblprd_ratio: float = DEFAULT_DATASET_RATIO,
     ccpd_ratio: float = DEFAULT_DATASET_RATIO,
+    ccpd_anhui_ratio: float = DEFAULT_DATASET_RATIO,
+    ccpd_base_ratio: float = DEFAULT_DATASET_RATIO,
     ccpd2020_ratio: float = DEFAULT_DATASET_RATIO,
-    ccpd_val_ratio: float = DEFAULT_CCPD_VAL_RATIO,
+    challenge_root: Path | str | None = None,
+    challenge_ratio: float = 0.0,
+    challenge_val_ratio: float = DEFAULT_CCPD_VAL_RATIO,
     plate_config: Path | str = DEFAULT_PLATE_CONFIG,
 ) -> Path:
-    """Build one hard-linked dataset from converted CBLPRD and CCPD datasets."""
-    option_ratios = {"cblprd_ratio": cblprd_ratio, "ccpd_ratio": ccpd_ratio, "ccpd2020_ratio": ccpd2020_ratio}
+    """Build one hard-linked dataset from converted CBLPRD, CCPD, and challenge datasets."""
+    option_ratios = {
+        "cblprd_ratio": cblprd_ratio, "ccpd_ratio": ccpd_ratio,
+        "ccpd_anhui_ratio": ccpd_anhui_ratio, "ccpd2020_ratio": ccpd2020_ratio,
+        "challenge_ratio": challenge_ratio,
+    }
     for name, ratio in option_ratios.items():
         if not 0 <= ratio <= 1:
             raise ConversionError(f"{name} must be between zero and one")
-    if not 0 < ccpd_val_ratio < 1:
-        raise ConversionError("ccpd_val_ratio must be greater than zero and less than one")
     roots = {"cblprd": Path(cblprd_root), "ccpd2019": Path(ccpd_root), "ccpd2020": Path(ccpd2020_root)}
-    ratios = {"cblprd": cblprd_ratio, "ccpd2019": ccpd_ratio, "ccpd2020": ccpd2020_ratio}
+    ratios = {
+        "cblprd": cblprd_ratio, "ccpd2019": ccpd_ratio,
+        "ccpd_anhui": ccpd_anhui_ratio, "ccpd2020": ccpd2020_ratio,
+    }
+    if challenge_root:
+        roots["challenge"] = Path(challenge_root)
+        ratios["challenge"] = challenge_ratio
     output_dir, config_path = Path(out_dir), Path(plate_config)
     _ensure_output_available(output_dir)
     cbl_rows = _read_split_dataset(roots["cblprd"], "cblprd", cblprd_ratio) if cblprd_ratio else ([], [])
-    ccpd_rows = _read_ccpd_rows(roots["ccpd2019"], ccpd_ratio, ccpd_val_ratio) if ccpd_ratio else ([], [])
+    ccpd_rows = _read_ccpd_rows(roots["ccpd2019"], ccpd_ratio, ccpd_anhui_ratio, ccpd_base_ratio) if ccpd_ratio else ([], [])
     ccpd2020_rows = (_read_split_dataset(roots["ccpd2020"], "ccpd2020", ccpd2020_ratio)
                      if ccpd2020_ratio else ([], []))
     train_rows = cbl_rows[0] + ccpd_rows[0] + ccpd2020_rows[0]
     val_rows = cbl_rows[1] + ccpd_rows[1] + ccpd2020_rows[1]
+    if challenge_root and challenge_ratio:
+        ch_train, ch_val = _read_challenge_data(roots["challenge"], challenge_ratio, challenge_val_ratio)
+        train_rows.extend(ch_train)
+        val_rows.extend(ch_val)
     _validate_rows(train_rows, "train")
     _validate_rows(val_rows, "val")
     _validate_plate_config(config_path, train_rows + val_rows)
@@ -258,7 +340,7 @@ def merge_datasets(
         shutil.copyfile(config_path, work_dir / "plate_config.yaml")
         _write_report(
             work_dir / "merge_report.json", roots=roots, ratios=ratios,
-            train_rows=train_rows, val_rows=val_rows, val_ratio=ccpd_val_ratio,
+            train_rows=train_rows, val_rows=val_rows, val_ratio=challenge_val_ratio,
         )
         work_dir.replace(output_dir)
     except Exception:
@@ -273,11 +355,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--cblprd-root", type=Path, default=DEFAULT_CBLPRD_ROOT)
     parser.add_argument("--ccpd-root", type=Path, default=DEFAULT_CCPD_ROOT)
     parser.add_argument("--ccpd2020-root", type=Path, default=DEFAULT_CCPD2020_ROOT)
+    parser.add_argument("--challenge-root", type=Path, default=None)
     parser.add_argument("--out-dir", type=Path, required=True)
-    parser.add_argument("--cblprd-ratio", type=float, default=DEFAULT_DATASET_RATIO)
+    parser.add_argument("--cblprd-ratio", type=float, default=0.05)
     parser.add_argument("--ccpd-ratio", type=float, default=DEFAULT_DATASET_RATIO)
+    parser.add_argument("--ccpd-anhui-ratio", type=float, default=DEFAULT_DATASET_RATIO,
+                        help="CCPD2019 安徽车牌保留比例 (0-1, 默认全保留)")
+    parser.add_argument("--ccpd-base-ratio", type=float, default=0.06,
+                        help="CCPD2019 ccpd_base 组保留比例 (0-1, 默认全保留)")
     parser.add_argument("--ccpd2020-ratio", type=float, default=DEFAULT_DATASET_RATIO)
-    parser.add_argument("--ccpd-val-ratio", type=float, default=DEFAULT_CCPD_VAL_RATIO)
+    parser.add_argument("--challenge-ratio", type=float, default=DEFAULT_DATASET_RATIO)
+    parser.add_argument("--challenge-val-ratio", type=float, default=DEFAULT_CCPD_VAL_RATIO)
     parser.add_argument("--plate-config", type=Path, default=DEFAULT_PLATE_CONFIG)
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -285,8 +373,12 @@ def main(argv: list[str] | None = None) -> int:
         output_dir = merge_datasets(
             args.cblprd_root, args.ccpd_root, args.ccpd2020_root, out_dir=args.out_dir,
             cblprd_ratio=args.cblprd_ratio, ccpd_ratio=args.ccpd_ratio,
+            ccpd_anhui_ratio=args.ccpd_anhui_ratio,
+            ccpd_base_ratio=args.ccpd_base_ratio,
             ccpd2020_ratio=args.ccpd2020_ratio,
-            ccpd_val_ratio=args.ccpd_val_ratio,
+            challenge_root=args.challenge_root,
+            challenge_ratio=args.challenge_ratio,
+            challenge_val_ratio=args.challenge_val_ratio,
             plate_config=args.plate_config,
         )
     except (ConversionError, FileExistsError, OSError, yaml.YAMLError) as error:
