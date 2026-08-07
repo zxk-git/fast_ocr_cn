@@ -224,7 +224,7 @@ def build_export_command(args: argparse.Namespace) -> tuple[list[str], dict[str,
             plate_config = PROJECT_ROOT / "config" / "cn_plate_config.yaml"
     required_file(plate_config)
 
-    output_dir = pathlib.Path(args.output_dir)
+    output_dir = pathlib.Path(args.output_dir) if args.output_dir else model_path.parent
     output_dir.mkdir(parents=True, exist_ok=True)
     output_dir = output_dir.resolve()
 
