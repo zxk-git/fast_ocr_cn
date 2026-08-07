@@ -1,0 +1,57 @@
+评估完成
+模型：/zxk/plate_ocr/plate_ocr/fast-plate-ocr/trained_models/fine_tuned/cct_xs_v2_torch/2026-08-07_14-10-24/last.keras
+模型类型：Keras（PyTorch）
+运行设备：auto
+车牌配置：/zxk/plate_ocr/plate_ocr/fast-plate-ocr/config/cn_plate_config.yaml
+数据集：
+  fast-plate-ocr/train：/zxk/plate_ocr/plate_ocr/asserts/CCPD2020/fast-plate-ocr/train/annotations.csv
+  fast-plate-ocr/val：/zxk/plate_ocr/plate_ocr/asserts/CCPD2020/fast-plate-ocr/val/annotations.csv
+  challenge_data/challenge_data：/zxk/plate_ocr/plate_ocr/asserts/challenge_data/annotations.csv
+评估参数：批次大小=1024，加载线程=None，GPU=0
+总体指标：
+  样本数：14103
+  完全正确车牌数：12596
+  车牌准确率：89.31%
+  字符准确率：97.03%
+  车牌长度准确率：99.79%
+  字符错误率：3.10%
+分组指标：
+  [fast-plate-ocr/train]
+    样本数：10775
+    完全正确车牌数：10453
+    车牌准确率：97.01%
+    字符准确率：99.31%
+    车牌长度准确率：99.87%
+    字符 Top-3 准确率：99.77%
+    字符错误率：0.68%
+    平均单张推理耗时：0.19 毫秒
+    单张推理耗时 P50：0.10 毫秒
+    单张推理耗时 P95：0.59 毫秒
+    推理吞吐量：5220.33 张/秒
+    端到端吞吐量：2289.64 张/秒
+  [fast-plate-ocr/val]
+    样本数：1001
+    完全正确车牌数：977
+    车牌准确率：97.60%
+    字符准确率：99.61%
+    车牌长度准确率：99.90%
+    字符 Top-3 准确率：99.91%
+    字符错误率：0.39%
+    平均单张推理耗时：0.11 毫秒
+    单张推理耗时 P50：0.11 毫秒
+    单张推理耗时 P95：0.11 毫秒
+    推理吞吐量：9178.48 张/秒
+    端到端吞吐量：2709.22 张/秒
+  [challenge_data/challenge_data]
+    样本数：2327
+    完全正确车牌数：1166
+    车牌准确率：50.11%
+    字符准确率：85.35%
+    车牌长度准确率：99.36%
+    字符 Top-3 准确率：92.84%
+    字符错误率：15.45%
+    平均单张推理耗时：0.12 毫秒
+    单张推理耗时 P50：0.10 毫秒
+    单张推理耗时 P95：0.22 毫秒
+    推理吞吐量：8669.86 张/秒
+    端到端吞吐量：3027.93 张/秒

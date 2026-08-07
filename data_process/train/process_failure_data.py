@@ -278,6 +278,17 @@ def save_failures(failures: list[FailureRecord], output_dir: pathlib.Path) -> in
     return written
 
 
+def save_evaluation_report(report: dict[str, Any], model_dir: pathlib.Path) -> None:
+    """Save human-readable evaluation report text into model_dir."""
+    model_dir.mkdir(parents=True, exist_ok=True)
+
+    text_path = model_dir / "evaluation_report.txt"
+    with text_path.open("w", encoding="utf-8") as handle:
+        handle.write(format_report_chinese(report))
+
+    LOGGER.info("Evaluation report saved to %s", text_path)
+
+
 # ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
@@ -409,6 +420,19 @@ def run_processing(
     # Save all failures
     saved_count = save_failures(all_failures, output_dir)
 
+    # Save evaluation report to model directory
+    eval_report = {
+        "model": str(model_path.resolve()),
+        "model_type": model_type,
+        "runtime_device": f"cuda:{gpu}" if device == "cuda" else device,
+        "plate_config": str(config_path.resolve()),
+        "datasets": {name: str(p.resolve()) for name, p in annotation_files.items()},
+        "settings": {"batch_size": batch_size, "gpu": gpu, "device": device},
+        "overall": overall_report,
+        "groups": group_reports,
+    }
+    save_evaluation_report(eval_report, model_path.parent)
+
     return {
         "model": str(model_path.resolve()),
         "model_type": model_type,
@@ -438,15 +462,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--model",
-        default="/zxk/plate_ocr/plate_ocr/fast-plate-ocr/trained_models/fine_tuned/cct_xs_v2_torch/2026-08-07_11-52-11/last.keras",
+        default="/zxk/plate_ocr/plate_ocr/fast-plate-ocr/trained_models/fine_tuned/cct_s_v2_torch/2026-08-06_16-24-08/last.keras",
         type=pathlib.Path,
         help="Path to a .keras or .onnx model",
     )
+
     parser.add_argument(
         "--dataset",
         nargs="+",
-        default=[pathlib.Path("/zxk/plate_ocr/plate_ocr/asserts/CBLPRD-330K/separate"), 
-                pathlib.Path("/zxk/plate_ocr/plate_ocr/asserts/CCPD/fast-plate-ocr"), 
+        default=[
+                # pathlib.Path("/zxk/plate_ocr/plate_ocr/asserts/CBLPRD-330K/separate"), 
+                # pathlib.Path("/zxk/plate_ocr/plate_ocr/asserts/CCPD/fast-plate-ocr"), 
                 pathlib.Path("/zxk/plate_ocr/plate_ocr/asserts/CCPD2020/fast-plate-ocr"),
                 pathlib.Path("/zxk/plate_ocr/plate_ocr/asserts/challenge_data")],
         type=pathlib.Path,
@@ -461,7 +487,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--output-dir",
-        default="/zxk/plate_ocr/plate_ocr/asserts/fine_challenge_data_xs",
+        default="/zxk/plate_ocr/plate_ocr/asserts/fine_challenge_data_s",
         type=pathlib.Path,
         help="Output directory for failure data in fastplateocr format",
     )

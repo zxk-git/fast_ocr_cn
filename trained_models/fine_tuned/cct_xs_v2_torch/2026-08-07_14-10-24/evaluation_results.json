@@ -1,0 +1,68 @@
+{
+  "model": "/zxk/plate_ocr/plate_ocr/fast-plate-ocr/trained_models/fine_tuned/cct_xs_v2_torch/2026-08-07_14-10-24/last.keras",
+  "model_type": "keras",
+  "runtime_device": "auto",
+  "plate_config": "/zxk/plate_ocr/plate_ocr/fast-plate-ocr/config/cn_plate_config.yaml",
+  "datasets": {
+    "fast-plate-ocr/train": "/zxk/plate_ocr/plate_ocr/asserts/CCPD2020/fast-plate-ocr/train/annotations.csv",
+    "fast-plate-ocr/val": "/zxk/plate_ocr/plate_ocr/asserts/CCPD2020/fast-plate-ocr/val/annotations.csv",
+    "challenge_data/challenge_data": "/zxk/plate_ocr/plate_ocr/asserts/challenge_data/annotations.csv"
+  },
+  "settings": {
+    "batch_size": 1024,
+    "gpu": 0,
+    "device": "auto"
+  },
+  "overall": {
+    "samples": 14103,
+    "correct_plates": 12596,
+    "plate_accuracy": 0.8931433028433666,
+    "character_accuracy": 0.9702722824930866,
+    "plate_length_accuracy": 0.9978727930227611,
+    "character_error_rate": 0.030950530860687192
+  },
+  "groups": {
+    "fast-plate-ocr/train": {
+      "samples": 10775,
+      "correct_plates": 10453,
+      "plate_accuracy": 0.9701160092807425,
+      "character_accuracy": 0.9930858468677494,
+      "plate_length_accuracy": 0.9987006960556845,
+      "top3_character_accuracy": 0.9976798143851509,
+      "character_error_rate": 0.006786542923433875,
+      "inference_ms_per_image": 0.19155858886231542,
+      "inference_latency_ms_p50": 0.10113133089362236,
+      "inference_latency_ms_p95": 0.5939062880135135,
+      "inference_throughput_images_per_second": 5220.334968737735,
+      "end_to_end_throughput_images_per_second": 2289.6381693900066
+    },
+    "fast-plate-ocr/val": {
+      "samples": 1001,
+      "correct_plates": 977,
+      "plate_accuracy": 0.9760239760239761,
+      "character_accuracy": 0.9961288711288712,
+      "plate_length_accuracy": 0.999000999000999,
+      "top3_character_accuracy": 0.9991258741258742,
+      "character_error_rate": 0.003871128871128871,
+      "inference_ms_per_image": 0.10895052855903214,
+      "inference_latency_ms_p50": 0.10895052855903214,
+      "inference_latency_ms_p95": 0.10895052855903214,
+      "inference_throughput_images_per_second": 9178.477729533683,
+      "end_to_end_throughput_images_per_second": 2709.218321492292
+    },
+    "challenge_data/challenge_data": {
+      "samples": 2327,
+      "correct_plates": 1166,
+      "plate_accuracy": 0.5010743446497636,
+      "character_accuracy": 0.8535131070047272,
+      "plate_length_accuracy": 0.9935539321014182,
+      "top3_character_accuracy": 0.9283949290932532,
+      "character_error_rate": 0.15448875665159925,
+      "inference_ms_per_image": 0.11534205370522206,
+      "inference_latency_ms_p50": 0.09938190828506777,
+      "inference_latency_ms_p95": 0.224148896990623,
+      "inference_throughput_images_per_second": 8669.864701348954,
+      "end_to_end_throughput_images_per_second": 3027.9332257697215
+    }
+  }
+}
