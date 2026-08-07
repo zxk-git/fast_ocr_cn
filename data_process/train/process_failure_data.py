@@ -438,14 +438,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--model",
-        default="/zxk/plate_ocr/plate_ocr/fast-plate-ocr/trained_models/fine_tuned/2026-08-06_16-24-08/best.keras",
+        default="/zxk/plate_ocr/plate_ocr/fast-plate-ocr/trained_models/fine_tuned/cct_xs_v2_torch/2026-08-07_11-52-11/last.keras",
         type=pathlib.Path,
         help="Path to a .keras or .onnx model",
     )
     parser.add_argument(
         "--dataset",
         nargs="+",
-        default=[pathlib.Path("/zxk/plate_ocr/plate_ocr/fast-plate-ocr/data_process/train")],
+        default=[pathlib.Path("/zxk/plate_ocr/plate_ocr/asserts/CBLPRD-330K/separate"), 
+                pathlib.Path("/zxk/plate_ocr/plate_ocr/asserts/CCPD/fast-plate-ocr"), 
+                pathlib.Path("/zxk/plate_ocr/plate_ocr/asserts/CCPD2020/fast-plate-ocr"),
+                pathlib.Path("/zxk/plate_ocr/plate_ocr/asserts/challenge_data")],
         type=pathlib.Path,
         help="One or more datasets: CSV files, directories with annotations.csv, "
              "or grouped roots with */annotations.csv",
@@ -458,7 +461,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--output-dir",
-        default="/zxk/plate_ocr/plate_ocr/asserts/fine_challenge_data",
+        default="/zxk/plate_ocr/plate_ocr/asserts/fine_challenge_data_xs",
         type=pathlib.Path,
         help="Output directory for failure data in fastplateocr format",
     )

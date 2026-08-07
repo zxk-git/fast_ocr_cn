@@ -261,7 +261,7 @@ def run_export(args: argparse.Namespace) -> None:
 def _add_train_args(parser: argparse.ArgumentParser, prefix: str) -> None:
     parser.add_argument("--dataset-root", default=str(PROJECT_ROOT.parent.parent / "asserts" / "FastOCRData"),
                         help="训练数据根目录 (含 train/val)")
-    parser.add_argument("--model-config", default=str(PROJECT_ROOT / "models" / "cct_s_v2.yaml"),
+    parser.add_argument("--model-config", default=str(PROJECT_ROOT / "models" / "cct_xs_v2.yaml"),
                         help="模型结构配置 YAML")
     parser.add_argument("--plate-config", default=str(PROJECT_ROOT / "config" / "cn_plate_config.yaml"),
                         help="车牌字符集配置 YAML")
@@ -281,11 +281,11 @@ def _resolve_train_defaults(args: argparse.Namespace, prefix: str) -> None:
     if args.epochs is None:
         args.epochs = 3 if args.quick else 200
     if args.batch_size is None:
-        args.batch_size = 1024
+        args.batch_size = 2048
     if args.lr is None:
         args.lr = 0.001
     if args.early_stopping_patience is None:
-        args.early_stopping_patience = 20
+        args.early_stopping_patience = 10
     if args.workers is None:
         args.workers = 16
 
@@ -312,7 +312,7 @@ def build_parser() -> argparse.ArgumentParser:
     ft.add_argument("--search-root", default=str(PROJECT_ROOT / "trained_models"),
                     help="查找最新 best.keras 的根目录 (未指定 model 时使用)")
     _add_train_args(ft, "fine-tune")
-    ft.add_argument("--output-dir", default=str(PROJECT_ROOT / "trained_models" / "fine_tuned"),
+    ft.add_argument("--output-dir", default=str(PROJECT_ROOT / "trained_models" / "fine_tuned" / "cct_xs_v2_torch"),
                     help="微调模型输出目录")
     ft.set_defaults(func=lambda args: _resolve_fine_tune_defaults(args) or run_fine_tune(args))
 
@@ -333,11 +333,11 @@ def _resolve_fine_tune_defaults(args: argparse.Namespace) -> None:
     if args.epochs is None:
         args.epochs = 3 if args.quick else 50
     if args.batch_size is None:
-        args.batch_size = 1024
+        args.batch_size = 2048
     if args.lr is None:
         args.lr = 0.0001
     if args.early_stopping_patience is None:
-        args.early_stopping_patience = 10
+        args.early_stopping_patience = 20
     if args.workers is None:
         args.workers = 16
 
